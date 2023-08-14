@@ -4,6 +4,8 @@ from datetime import datetime
 import requests
 import re
 from bs4 import BeautifulSoup
+import network as nt
+import platform
 import os
 
 FILENAME = "data.csv"
@@ -12,6 +14,7 @@ TIMESPAN = 10 #in minutes
 STATION_NAME = "Rovetta"
 URL ="https://bicimia.bresciamobilita.it/frmLeStazioni.aspx"
 actual_id = -1
+NETWORK_SSID = "Ospiti"
 
 class Station:
     def __init__(self, id_val, name, time, bikes, shelters):
@@ -39,6 +42,20 @@ def get_station(name):
 
     return Station(id_val=actual_id, name=name, time=time, bikes=bikes, shelters=shelters)
 
+def check_network_status():
+    return True
+
+
+async def task_network_coroutine(_minutes):
+    while True:
+        #Check internet connection
+        result = check_network_status() 
+        if not result:
+            # Try to reconnect
+            pass
+
+        await asyncio.sleep(delay=_minutes*60)
+
 async def task_data_coroutine(_minutes):
     global actual_id
     while True:
@@ -64,6 +81,14 @@ def find_files(filename, search_path):
 
 async def main():
     global actual_id
+
+    # Connect to wifi if not connected
+    result = nt.internet_on()
+    if not result:
+        #Connect to wifi
+        nt.connect(NETWORK_SSID, NETWORK_SSID)
+        nt.compile_captive(system_type=platform.system())
+
     # Open the csv file
     result = find_files(FILENAME, "..\statistic_bicimia")
     if not result: #the file does not exist, so create it and format it
@@ -82,7 +107,8 @@ async def main():
 
     # Set the loop task
     task_data = asyncio.create_task(task_data_coroutine(TIMESPAN), name="GetDataTask")
-    #task_network = asyncio.create_task(task_network_coroutine(TIMESPAN/2), name="NetInfoTask")
+    task_network = asyncio.create_task(task_network_coroutine(TIMESPAN/2), name="NetInfoTask")
     await task_data
+    await task_network
 
 asyncio.run(main())
